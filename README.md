@@ -507,7 +507,7 @@ Built on top of excellent open-source projects:
 
 **Davi Franco**  
 📧 alcanfordavi@gmail.com  
-🐙 [@davifrancamaciel](https://github.com/davifrancamaciel)
+🐙 [@DaviAlcanfor](https://github.com/DaviAlcanfor)
 
 ---
 
