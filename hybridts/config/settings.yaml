@@ -1,0 +1,51 @@
+# queries:
+#   Queries SQL foram removidas para uso fora do ambiente Databricks empresarial.
+#   
+#   Para usar este projeto, forneça seus dados diretamente como pandas DataFrame
+#   com as seguintes colunas:
+#     - ds: data da observação (datetime)
+#     - y: valor target (float)
+#   
+#   Exemplo:
+#     import pandas as pd
+#     df = pd.read_csv('seus_dados.csv', parse_dates=['ds'])
+#     # df deve ter colunas: ['ds', 'y']
+
+cv_params:
+  initial_window: 365
+  step_length: 30
+
+models:
+  prophet:
+    param_grid:
+      changepoint_prior_scale: [0.01, 0.1]
+      seasonality_prior_scale: [1.0, 10.0]
+      seasonality_mode: ['multiplicative']
+    cv_params:
+      initial: '400 days'
+      period: '30 days'
+      horizon: '30 days'
+      parallel: 'threads'
+
+  xgboost:
+    param_grid:
+      window_length: [14, 28]
+      estimator__max_depth: [5, 6]
+      estimator__learning_rate: [0.05, 0.1]
+      estimator__n_estimators: [200]
+    static:
+      n_estimators: 200
+      max_depth: 6
+      learning_rate: 0.05
+      subsample: 0.8
+      tree_method: 'hist'
+      random_state: 42
+
+  lightgbm:
+    param_grid:
+      window_length: [14, 28]
+      estimator__max_depth: [5, 6]
+      estimator__learning_rate: [0.05, 0.1]
+      estimator__n_estimators: [500]
+
+test_size: 30

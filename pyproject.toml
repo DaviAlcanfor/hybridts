@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hybridts"
+version = "0.1.0"
+description = "Hybrid time series forecasting library combining Prophet with gradient boosting models"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Davi Franco", email = "alcanfordavi@gmail.com"}
+]
+keywords = [
+    "time-series",
+    "forecasting",
+    "prophet",
+    "xgboost",
+    "lightgbm",
+    "hybrid-models",
+    "machine-learning",
+    "ensemble",
+    "prediction"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",  
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pandas>=2.0.0",            
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0", 
+    "prophet>=1.1.0", 
+    "xgboost>=2.0.0",       
+    "lightgbm>=4.0.0",  
+    "sktime>=0.40.0",  
+    "holidays>=0.40", 
+    "python-dateutil>=2.8.0",   
+    "PyYAML>=6.0",              
+    "joblib>=1.3.0",            
+]
+
+[project.optional-dependencies]
+mlflow = [
+    "mlflow>=2.10.0"  
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+]
+docs = [
+    "sphinx>=4.5.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+all = [
+    "hybridts[mlflow,dev,docs]"
+]
+
+[project.urls]
+Homepage = "https://github.com/davifrancamaciel/hybridts"
+Repository = "https://github.com/davifrancamaciel/hybridts"
+Documentation = "https://github.com/davifrancamaciel/hybridts#readme"
+"Bug Tracker" = "https://github.com/davifrancamaciel/hybridts/issues"
+Changelog = "https://github.com/davifrancamaciel/hybridts/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["hybridts*"]
+exclude = ["tests*", "examples*"]  
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+
+[tool.isort]
+profile = "black"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=hybridts --cov-report=html --cov-report=term"
