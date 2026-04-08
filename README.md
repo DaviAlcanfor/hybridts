@@ -30,48 +30,15 @@ pip install hybridts
 ## Quick Start
 
 ```python
-import pandas as pd
 from hybridts import HybridForecaster, ProphetModel, XGBoostTuner
+import pandas as pd
 
-prophet = ProphetModel(
-    param_grid={
-        "changepoint_prior_scale": [0.05, 0.1],
-        "seasonality_prior_scale": [5.0, 10.0],
-        "seasonality_mode": ["multiplicative"],
-    },
-    cv_params={
-        "initial": "300 days",
-        "period": "30 days",
-        "horizon": "30 days",
-        "parallel": "threads",
-    },
-)
+prophet = ProphetModel()
+xgb = XGBoostTuner()
 
-xgb = XGBoostTuner(
-    test_size=30,
-    param_grid={
-        "window_length": [21, 28],
-        "estimator__max_depth": [5, 7],
-        "estimator__learning_rate": [0.05, 0.1],
-        "estimator__n_estimators": [200],
-    },
-    static_params={"n_estimators": 200, "max_depth": 5, "learning_rate": 0.05},
-    cv_initial_window=270,
-    cv_step_length=30,
-    window_length=21,
-    fh=30,
-    strategy="recursive",
-    regressor_params={"random_state": 42, "tree_method": "hist"},
-)
-
-forecaster = HybridForecaster(
-    primary_model=prophet,
-    secondary_model=xgb,
-    test_size=30,
-)
+forecaster = HybridForecaster(primary_model=prophet, secondary_model=xgb)
 
 df = pd.read_csv("data.csv", parse_dates=["ds"])  # columns: ds, y
-
 forecaster.fit(df)
 forecast = forecaster.predict(horizon=30)
 print(forecast)
