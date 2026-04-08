@@ -1,35 +1,20 @@
 # HybridTS
 
-**Hybrid Time Series Forecasting Made Simple**
+Hybrid Time Series Forecasting for Python
 
-A Python library that combines the power of Prophet's trend detection with gradient boosting algorithms (XGBoost and LightGBM) for accurate time series forecasting.
+Combines Prophet's trend and seasonality detection with gradient boosting (XGBoost / LightGBM) to correct residuals — delivering more accurate forecasts than either model alone.
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![PyPI](https://img.shields.io/badge/pypi-v0.1.0-orange)](https://pypi.org/project/hybridts/)
+[![Version](https://img.shields.io/badge/version-0.2.0-orange)](https://github.com/DaviAlcanfor/hybridts)
 
 ---
 
-## Why HybridTS?
+## How It Works
 
-Time series forecasting is hard. While Prophet excels at capturing trends and seasonality, it often misses complex patterns in the residuals. Gradient boosting models like XGBoost are great at capturing these patterns but struggle with long-term trends.
-
-**HybridTS combines both approaches:**
-
-1. **Prophet** captures trend, seasonality, and holiday effects
-2. **XGBoost/LightGBM** models the residuals to capture remaining patterns
-3. **Final forecast** = Prophet baseline + ML corrections
-
-This hybrid approach typically achieves **15-30% better accuracy** than using either model alone.
-
-### What Makes It Different
-
-- 🎯 **Pre-configured hybrid models** - No need to manually orchestrate Prophet + ML
-- 🔧 **Automated feature engineering** - Holidays, paydays, temporal patterns built-in
-- 📊 **Temporal cross-validation** - Proper time series validation out-of-the-box
-- 🌍 **Flexible holidays** - Support for any country via the `holidays` library
-- 📈 **MLflow integration** - Track experiments and version models automatically
-- 🚀 **Production-ready** - Designed for real-world forecasting workflows
+1. **Prophet** fits trend, seasonality, and holiday effects
+2. **XGBoost / LightGBM** learns from the residuals using engineered features
+3. **Final forecast** = Prophet baseline + ML residual correction
 
 ---
 
@@ -39,476 +24,265 @@ This hybrid approach typically achieves **15-30% better accuracy** than using ei
 pip install hybridts
 ```
 
-**Requirements:** Python 3.8+
-
 ---
 
 ## Quick Start
 
-### Installation
-
-```bash
-pip install hybridts
-```
-
-### Simplest Example (5 lines)
-
 ```python
 import pandas as pd
-from hybridts import HybridForecaster
+from hybridts import HybridForecaster, ProphetModel, XGBoostTuner
 
-# Load your data (must have 'ds' and 'y' columns)
-df = pd.read_csv("your_data.csv", parse_dates=["ds"])
+prophet = ProphetModel(
+    param_grid={
+        "changepoint_prior_scale": [0.05, 0.1],
+        "seasonality_prior_scale": [5.0, 10.0],
+        "seasonality_mode": ["multiplicative"],
+    },
+    cv_params={
+        "initial": "300 days",
+        "period": "30 days",
+        "horizon": "30 days",
+        "parallel": "threads",
+    },
+)
 
-# Train and predict with defaults
-forecaster = HybridForecaster()
-forecaster.fit(df, model="xgboost")
+xgb = XGBoostTuner(
+    test_size=30,
+    param_grid={
+        "window_length": [21, 28],
+        "estimator__max_depth": [5, 7],
+        "estimator__learning_rate": [0.05, 0.1],
+        "estimator__n_estimators": [200],
+    },
+    static_params={"n_estimators": 200, "max_depth": 5, "learning_rate": 0.05},
+    cv_initial_window=270,
+    cv_step_length=30,
+    window_length=21,
+    fh=30,
+    strategy="recursive",
+    regressor_params={"random_state": 42, "tree_method": "hist"},
+)
+
+forecaster = HybridForecaster(
+    primary_model=prophet,
+    secondary_model=xgb,
+    test_size=30,
+)
+
+df = pd.read_csv("data.csv", parse_dates=["ds"])  # columns: ds, y
+
+forecaster.fit(df)
 forecast = forecaster.predict(horizon=30)
-
-print(forecast[['ds', 'yhat']].head())
+print(forecast)
 ```
 
-That's it! The library handles Prophet training, residual modeling, cross-validation, and hybrid forecasting automatically.
+---
 
-### With Custom Configuration
+## Data Format
 
-```python
-from hybridts import HybridForecaster
-
-config = {
-    'test_size': 30,
-    'models': {
-        'xgboost': {
-            'param_grid': {
-                'window_length': [21],
-                'estimator__max_depth': [5],
-                'estimator__learning_rate': [0.05]
-            }
-        }
-    }
-}
-
-forecaster = HybridForecaster(config=config)
-forecaster.fit(df, model="xgboost")
-forecast = forecaster.predict(horizon=30)
-```
-
-For more configuration options, see [Configuration Modes](#configuration-modes) below.
-
-### Data Format
-
-Your data must be a pandas DataFrame with two columns:
+A pandas DataFrame with exactly two columns:
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `ds` | datetime | Date of observation |
-| `y` | float | Value to forecast (revenue, demand, etc.) |
+| `y` | float | Value to forecast |
 
-**Example:**
+---
+
+## Core API
+
+### `HybridForecaster`
+
 ```python
-import pandas as pd
-import numpy as np
+HybridForecaster(
+    primary_model,           # ProphetModel instance
+    secondary_model,         # XGBoostTuner or LightGBMTuner instance
+    test_size=30,            # holdout size for validate()
+    paydays_set=None,        # set of payday Timestamps (auto-generated if None)
+    holidays_country="BR",   # country code for auto-generated holidays
+    holidays_state=None,     # state/subdivision code
+)
+```
 
-# Generate sample data
-dates = pd.date_range('2023-01-01', periods=365, freq='D')
-values = np.random.uniform(10000, 20000, 365)
-df = pd.DataFrame({'ds': dates, 'y': values})
+#### `fit(df, holidays=<auto>, features=<auto>)`
+
+Trains both models. By default, holidays and features are auto-generated from the data.
+
+```python
+forecaster.fit(df)                        # auto holidays + auto features
+forecaster.fit(df, holidays=None)         # no holidays passed to Prophet
+forecaster.fit(df, holidays=my_holidays)  # custom holidays DataFrame
+forecaster.fit(df, features=None)         # secondary model trains without exogenous features
+```
+
+#### `predict(horizon, features=<auto>)`
+
+Returns a DataFrame with `horizon` rows:
+
+| Column                  | Description            |
+| ----------------------- | ---------------------- |
+| `data`                  | Forecast date          |
+| `forecast_primary_base` | Prophet baseline       |
+| `residual_correction`   | ML adjustment          |
+| `forecast_final`        | Final hybrid forecast  |
+
+#### `validate(df, test_size=None)`
+
+Evaluates on a holdout set without data leakage. Returns `(metrics, y_true, y_pred)`.
+
+```python
+metrics, y_true, y_pred = forecaster.validate(df)
+# metrics: {"mape", "rmse", "mae", "mdape"}
+```
+
+#### `validate_and_fit(df, test_size=None)`
+
+Validates on holdout, then retrains on the full dataset.
+
+```python
+forecaster, metrics = forecaster.validate_and_fit(df)
 ```
 
 ---
 
-## Configuration Modes
+## Models
 
-HybridTS supports **three ways** to configure models, from simplest to most flexible:
+### `ProphetModel`
 
-### Mode 1: Default Configuration (Quickest) ⚡
-
-Best for: Quick experiments, prototyping, first-time users
+Wraps Prophet with automated hyperparameter tuning via cross-validation.
 
 ```python
-from hybridts import HybridForecaster
-
-# Everything configured with sensible defaults
-forecaster = HybridForecaster()
-forecaster.fit(df, model="xgboost")
-forecast = forecaster.predict(horizon=30)
+ProphetModel(
+    param_grid={"changepoint_prior_scale": [0.05, 0.1], ...},  # grid search params
+    cv_params={"initial": "300 days", "period": "30 days", "horizon": "30 days"},
+    yearly_seasonality=True,
+    weekly_seasonality=True,
+    daily_seasonality=False,
+    static_params={...},   # used by fit_static() — skips CV
+)
 ```
 
-**What's included by default:**
-- Test size: 30 days
-- Prophet with multiplicative seasonality
-- XGBoost/LightGBM with optimized hyperparameters
-- Expanding window cross-validation
+| Method                     | Description                                          |
+| -------------------------- | ---------------------------------------------------- |
+| `fit(df, holidays)`        | Tunes hyperparameters via CV, then fits on full data |
+| `fit_static(df, holidays)` | Fits with `static_params`, no CV                     |
+| `predict(df)`              | Returns Prophet forecast DataFrame                   |
 
-### Mode 2: Programmatic Configuration (Flexible) 🔧
+### `XGBoostTuner`
 
-Best for: Custom experiments, parameter tuning, notebooks
+Wraps XGBoost via sktime's `make_reduction` with grid search and expanding window CV.
 
 ```python
-from hybridts import HybridForecaster
-
-config = {
-    'test_size': 30,
-    'cv_params': {
-        'initial_window': 300,
-        'step_length': 30
-    },
-    'models': {
-        'prophet': {
-            'param_grid': {
-                'changepoint_prior_scale': [0.05, 0.1],
-                'seasonality_prior_scale': [5.0, 10.0],
-                'seasonality_mode': ['multiplicative']
-            }
-        },
-        'xgboost': {
-            'param_grid': {
-                'window_length': [21, 28],
-                'estimator__max_depth': [5, 7],
-                'estimator__learning_rate': [0.05, 0.1]
-            }
-        }
-    }
-}
-
-forecaster = HybridForecaster(config=config)
-forecaster.fit(df, model="xgboost")
+XGBoostTuner(
+    test_size=30,
+    param_grid={"window_length": [21], "estimator__max_depth": [5, 7], ...},
+    static_params={"n_estimators": 200, "max_depth": 5, ...},
+    cv_initial_window=270,
+    cv_step_length=30,
+    window_length=21,
+    fh=30,
+    strategy="recursive",
+    regressor_params={"random_state": 42},
+)
 ```
 
-### Mode 3: YAML Configuration (Production) 📋
+### `LightGBMTuner`
 
-Best for: Production pipelines, reproducible experiments, team collaboration
+Same interface as `XGBoostTuner`, using LightGBM as the estimator.
 
-**settings.yaml:**
-```yaml
-test_size: 30
-
-cv_params:
-  initial_window: 300
-  step_length: 30
-
-models:
-  prophet:
-    param_grid:
-      changepoint_prior_scale: [0.05, 0.1, 0.5]
-      seasonality_prior_scale: [5.0, 10.0]
-      seasonality_mode: ['multiplicative']
-    cv_params:
-      initial: '350 days'
-      period: '30 days'
-      horizon: '30 days'
-      parallel: 'threads'
-  
-  xgboost:
-    param_grid:
-      window_length: [21, 28]
-      estimator__max_depth: [5, 7]
-      estimator__learning_rate: [0.05, 0.1]
-    static:
-      n_estimators: 200
-      max_depth: 5
-      learning_rate: 0.05
-```
-
-**Python:**
 ```python
-from hybridts import HybridForecaster
-from hybridts.config import load_config
-
-config = load_config("settings.yaml")
-forecaster = HybridForecaster(config=config)
-forecaster.fit(df, model="xgboost")
+LightGBMTuner(
+    lgbm_regressor_params={"strategy": "recursive", "n_estimators": 200, ...},
+    test_size=30,
+    initial_window=270,
+    step_length=30,
+    window_length=21,
+    param_grid={"window_length": [21, 28], ...},
+)
 ```
 
-**Benefits:**
-- ✅ Version control your configurations
-- ✅ Share configurations across team
-- ✅ Easy A/B testing (swap config files)
-- ✅ Separate code from parameters
+Both models expose `fit()`, `fit_static()`, and `predict()`.
 
 ---
 
-## Key Features
-
-### 1. Hybrid Models
-
-Combine Prophet with gradient boosting for superior accuracy:
+## Feature Engineering
 
 ```python
-from hybridts import HybridForecaster, TimeSeriesProcessor
+from hybridts import create_features, get_brazilian_paydays, create_holidays_prophet
 
-processor = TimeSeriesProcessor()
-forecaster = HybridForecaster(config=config, processor=processor)
+# Generate Brazilian payday dates
+paydays = get_brazilian_paydays(start_year=2022, end_year=2025)
 
-# Choose your ML model
-forecaster.fit(df, escolha_modelo="xgboost")    # Prophet + XGBoost
-forecaster.fit(df, escolha_modelo="lightgbm")   # Prophet + LightGBM
-forecaster.fit(df, escolha_modelo="sxgboost")   # Prophet + XGBoost (fast mode)
-```
-
-### 2. Automated Feature Engineering
-
-Built-in features for common time series patterns:
-
-```python
-from hybridts import create_features, get_brazilian_paydays
-
-# Generate payday dates
-paydays = get_brazilian_paydays(2023, 2025, country="BR", state="SP")
-
-# Create features automatically
-X = create_features(
-    df_dates=df[['ds']],
-    paydays_set=paydays,
-    min_year=2023,
+# Create exogenous features
+features = create_features(
+    df_dates=df[["ds"]],
+    paydays_set=paydays,       # optional — all payday features zeroed if None
+    min_year=2022,
     max_year=2025,
     holidays_country="BR",
-    holidays_state="SP"
-)
-
-# Features created:
-# - is_weekend, is_month_start, is_month_end
-# - day_of_week, day_of_month
-# - is_payday, is_adiantamento (salary advance)
-# - is_holiday, is_holiday_eve, is_post_holiday
-# - dias_desde_pagamento (days since last payday)
-```
-
-### 3. Custom Holidays
-
-Support for any country and custom events:
-
-```python
-from hybridts import create_holidays_prophet
-
-# Brazilian holidays (default)
-holidays_br = create_holidays_prophet(
-    years=[2023, 2024, 2025],
-    country="BR",
-    state="SP"
-)
-
-# US holidays with custom events
-holidays_us = create_holidays_prophet(
-    years=[2023, 2024, 2025],
-    country="US",
-    state=None,
-    custom_events=[
-        {'holiday': 'Black_Friday', 'ds': '2023-11-24', 'lower_window': -2, 'upper_window': 2},
-        {'holiday': 'Cyber_Monday', 'ds': '2023-11-27', 'lower_window': 0, 'upper_window': 2}
-    ]
+    holidays_state="SP",
 )
 ```
 
-### 4. Model Validation
+Generated features:
 
-Proper time series validation with temporal cross-validation:
+| Feature                  | Description                    |
+| ------------------------ | ------------------------------ |
+| `is_weekend`             | 1 if Saturday or Sunday        |
+| `is_month_start`         | 1 if day <= 9                  |
+| `is_month_end`           | 1 if last day of month         |
+| `day_of_week`            | 0 (Mon) to 6 (Sun)             |
+| `day_of_month`           | 1-31                           |
+| `is_payday`              | 1 if date is a payday          |
+| `is_adiantamento`        | 1 if salary advance day        |
+| `sextou_com_dinheiro`    | 1 if Friday and payday         |
+| `dias_desde_pagamento`   | Days since last payday         |
+| `is_holiday`             | 1 if public holiday            |
+| `is_holiday_eve`         | 1 if day before holiday        |
+| `is_post_holiday`        | 1 if day after holiday         |
+
+---
+
+## Logging
+
+HybridTS uses [loguru](https://github.com/Delgan/loguru) with logging disabled by default (library-safe). To enable:
 
 ```python
-# Split data
-df_train = df.iloc[:-30]
-df_test = df.iloc[-30:]
-
-# Train
-forecaster.fit(df_train, escolha_modelo="xgboost")
-
-# Validate
-metrics = forecaster.validate(df_train, df_test)
-
-print(f"MAPE: {metrics['mape']:.2%}")
-print(f"RMSE: {metrics['rmse']:.2f}")
-print(f"MAE: {metrics['mae']:.2f}")
-```
-
-### 5. MLflow Integration
-
-Track experiments and version models:
-
-```python
-# Train and save
-forecaster.fit(df, escolha_modelo="xgboost")
-metrics = forecaster.validate(df, df_test)
-
-run_id = forecaster.save_to_mlflow(
-    target="Revenue",
-    metrics=metrics,
-    experiment_path="my_forecasting_project",
-    registry_path="./models/latest_model.json"
-)
-
-# Load later
-from hybridts import HybridForecaster, TimeSeriesProcessor
-
-forecaster, metadata = HybridForecaster.load_from_mlflow(
-    config=config,
-    processor=processor,
-    registry_path="./models/latest_model.json"
-)
-
-print(f"Model trained on: {metadata['trained_at']}")
-print(f"MAPE: {metadata['mape']:.2%}")
+from loguru import logger
+logger.enable("hybridts")
 ```
 
 ---
 
-## Configuration
+## Project Structure
 
-HybridTS uses YAML for configuration. Create a `config.yaml` file:
-
-```yaml
-# Temporal cross-validation settings
-cv_params:
-  initial_window: 365
-  step_length: 30
-
-# Model hyperparameters
-models:
-  prophet:
-    param_grid:
-      changepoint_prior_scale: [0.01, 0.1]
-      seasonality_prior_scale: [1.0, 10.0]
-      seasonality_mode: ['multiplicative']
-    cv_params:
-      initial: '365 days'
-      period: '30 days'
-      horizon: '30 days'
-      parallel: 'threads'
-
-  xgboost:
-    param_grid:
-      window_length: [14, 28]
-      estimator__max_depth: [5, 6]
-      estimator__learning_rate: [0.05, 0.1]
-      estimator__n_estimators: [200]
-
-# Test set size
-test_size: 30
+```text
+hybridts/
+├── __init__.py                  # public API
+└── src/
+    ├── features/
+    │   ├── data_processor.py    # TimeSeriesProcessor
+    │   ├── engineering.py       # create_features
+    │   └── holidays.py          # create_holidays_prophet, get_brazilian_paydays
+    ├── models/
+    │   ├── primary/
+    │   │   └── prophet.py       # ProphetModel
+    │   └── secondary/
+    │       ├── xgboost.py       # XGBoostTuner
+    │       └── lightgbm.py      # LightGBMTuner
+    ├── pipeline/
+    │   └── pipeline.py          # HybridForecaster
+    └── exception/
+        ├── model_exception.py   # ModelTrainingException, ModelPredictionException
+        └── dataframe_exception.py
 ```
-
-**Or configure programmatically:**
-
-```python
-config = {
-    'test_size': 30,
-    'models': {
-        'prophet': {
-            'param_grid': {
-                'changepoint_prior_scale': [0.05],
-                'seasonality_mode': ['multiplicative']
-            }
-        },
-        'xgboost': {
-            'param_grid': {
-                'window_length': [14],
-                'estimator__max_depth': [5]
-            }
-        }
-    }
-}
-
-forecaster = HybridForecaster(config=config, processor=processor)
-```
-
----
-
-## Examples
-
-Check out the `examples/` directory for complete examples:
-
-- **quickstart.py** - Basic usage and configuration
-- **notebooks/** - Jupyter notebooks with detailed workflows
-
----
-
-## Use Cases
-
-HybridTS works well for:
-
-- 📈 **Revenue forecasting** - Predict future revenue with trend and seasonality
-- 🛒 **Demand forecasting** - Forecast product demand for inventory planning
-- 💰 **Financial metrics** - TPV, transaction volume, user growth
-- 📊 **Business KPIs** - Any metric with temporal patterns
-
-**Not recommended for:**
-- High-frequency data (sub-hourly) - Prophet is designed for daily+ granularity
-- Very short time series (<6 months) - Not enough data for reliable patterns
-- Non-stationary processes - Requires preprocessing/differencing
-
----
-
-## Performance Tips
-
-### Speed Up Training
-
-Grid search can be slow. For faster iterations:
-
-```python
-# Use static parameters (no grid search)
-forecaster.fit(df, escolha_modelo="sxgboost")  # 's' prefix = static/fast mode
-```
-
-### Reduce Memory Usage
-
-For large datasets:
-
-```python
-# Use smaller cross-validation windows
-config['cv_params']['initial_window'] = 180  # Instead of 365
-config['cv_params']['step_length'] = 60      # Instead of 30
-```
-
----
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE)
 
 ---
 
-## Citation
-
-If you use HybridTS in your research or project, please cite:
-
-```bibtex
-@software{hybridts2026,
-  author = {Franco, Davi},
-  title = {HybridTS: Hybrid Time Series Forecasting},
-  year = {2026},
-  url = {https://github.com/davifrancamaciel/hybridts}
-}
-```
-
----
-
-## Acknowledgments
-
-Built on top of excellent open-source projects:
-
-- [Prophet](https://facebook.github.io/prophet/) by Meta
-- [XGBoost](https://xgboost.readthedocs.io/) by DMLC
-- [LightGBM](https://lightgbm.readthedocs.io/) by Microsoft
-- [sktime](https://www.sktime.net/) for time series utilities
-
----
-
-## Contact
-
-**Davi Franco**  
-📧 alcanfordavi@gmail.com  
-🐙 [@DaviAlcanfor](https://github.com/DaviAlcanfor)
-
----
-
-**Made with ❤️ for the time series forecasting community**
+**Davi Franco** — [GitHub](https://github.com/DaviAlcanfor)
