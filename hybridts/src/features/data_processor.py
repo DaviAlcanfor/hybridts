@@ -14,13 +14,6 @@ class TimeSeriesProcessor:
                      No longer required for usage outside Databricks.
     """
     def __init__(self, mapa_queries: Optional[dict] = None):
-        """
-        Inicializa o processador de séries temporais.
-        
-        Args:
-            mapa_queries: (Opcional) Dicionário de queries SQL - mantido para retrocompatibilidade.
-                         Não é mais necessário para uso fora do Databricks.
-        """
         self.mapa_queries = mapa_queries or {}
 
     def df_train_test_split(
