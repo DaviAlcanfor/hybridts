@@ -1,5 +1,7 @@
 # HybridTS
 
+![HybridTS Logo](docs/logo_v1.png)
+
 Hybrid Time Series Forecasting for Python
 
 Combines Prophet's trend and seasonality detection with gradient boosting (XGBoost / LightGBM) to correct residuals — delivering more accurate forecasts than either model alone.
