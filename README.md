@@ -7,6 +7,7 @@ Combines Prophet's trend and seasonality detection with gradient boosting (XGBoo
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.2.0-orange)](https://github.com/DaviAlcanfor/hybridts)
+[![Tests](https://github.com/DaviAlcanfor/hybridts/actions/workflows/tests.yml/badge.svg)](https://github.com/DaviAlcanfor/hybridts/actions/workflows/tests.yml)
 
 ---
 
