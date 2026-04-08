@@ -6,9 +6,9 @@ from typing import Optional, Set
 
 def create_features(
     df_dates: pd.DataFrame,
-    paydays_set: Set,
-    min_year: int,
-    max_year: int,
+    paydays_set: Optional[Set] = None,
+    min_year: int = None,
+    max_year: int = None,
     holidays_country: str = "BR",
     holidays_state: Optional[str] = "SP",
     payday_advance_day: int = 20,
@@ -52,23 +52,28 @@ def create_features(
     df_exo['is_month_end'] = df_exo['ds'].dt.is_month_end.astype(int)
     df_exo['day_of_week'] = df_exo['ds'].dt.dayofweek
     df_exo['day_of_month'] = df_exo['ds'].dt.day
-    df_exo['is_payday'] = df_exo['ds'].isin(paydays_set).astype(int)
-    
-    # Adiantamento salarial (parametrizável)
-    df_exo['is_adiantamento'] = df_exo['ds'].apply(
-        lambda x: 1 if (x.day == payday_advance_day and x.weekday() < 5) or 
-                       (x.day == payday_advance_day - 1 and x.weekday() == 4) or 
-                       (x.day == payday_advance_day - 2 and x.weekday() == 4) else 0
-    )
+    if paydays_set is not None:
+        df_exo['is_payday'] = df_exo['ds'].isin(paydays_set).astype(int)
+        df_exo['is_adiantamento'] = df_exo['ds'].apply(
+            lambda x: 1 if (x.day == payday_advance_day and x.weekday() < 5) or
+                           (x.day == payday_advance_day - 1 and x.weekday() == 4) or
+                           (x.day == payday_advance_day - 2 and x.weekday() == 4) else 0
+        )
+        df_exo['sextou_com_dinheiro'] = ((df_exo['day_of_week'] == 4) & (df_exo['is_payday'] == 1)).astype(int)
+        df_exo['data_temp'] = df_exo['ds']
+        df_exo.loc[df_exo['is_payday'] == 0, 'data_temp'] = pd.NaT
+        df_exo['ultimo_pagamento'] = df_exo['data_temp'].ffill()
+        df_exo['dias_desde_pagamento'] = (df_exo['ds'] - df_exo['ultimo_pagamento']).dt.days
+        df_exo['dias_desde_pagamento'] = df_exo['dias_desde_pagamento'].fillna(default_days_since_payday)
+        df_exo.drop(columns=['data_temp', 'ultimo_pagamento'], inplace=True)
+    else:
+        df_exo['is_payday'] = 0
+        df_exo['is_adiantamento'] = 0
+        df_exo['sextou_com_dinheiro'] = 0
+        df_exo['dias_desde_pagamento'] = 0
+
     df_exo['is_holiday'] = df_exo['ds'].apply(lambda x: 1 if x in br_holidays else 0)
     df_exo['is_holiday_eve'] = df_exo['ds'].apply(lambda x: 1 if (x + timedelta(days=1)) in br_holidays else 0)
-    df_exo['sextou_com_dinheiro'] = ((df_exo['day_of_week'] == 4) & (df_exo['is_payday'] == 1)).astype(int)
-    df_exo['data_temp'] = df_exo['ds']
-    df_exo.loc[df_exo['is_payday'] == 0, 'data_temp'] = pd.NaT 
-    df_exo['ultimo_pagamento'] = df_exo['data_temp'].ffill()  
-    df_exo['dias_desde_pagamento'] = (df_exo['ds'] - df_exo['ultimo_pagamento']).dt.days
-    df_exo['dias_desde_pagamento'] = df_exo['dias_desde_pagamento'].fillna(default_days_since_payday)
-    df_exo.drop(columns=['data_temp', 'ultimo_pagamento'], inplace=True)    
     df_exo['is_post_holiday'] = df_exo['ds'].apply(lambda x: 1 if (x - timedelta(days=1)) in br_holidays else 0)
     df_exo = df_exo.set_index('ds')
     df_exo.index = pd.PeriodIndex(df_exo.index, freq='D')
