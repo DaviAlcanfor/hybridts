@@ -59,7 +59,7 @@ def test_evaluate_returns_metrics_and_arrays(sample_timeseries, fake_primary, fa
     forecaster = HybridForecaster(fake_primary, fake_secondary, test_size=30)
     metrics, y_true, y_pred = forecaster.evaluate(sample_timeseries)
     
-    assert {"mape", "rmse", "mae", "mdape"}.issubset(metrics.keys())
+    assert {"MAPE", "RMSE", "MAE"}.issubset(metrics.keys())
     assert len(y_true) == 30
     assert len(y_pred) == 30
 
@@ -78,5 +78,5 @@ def test_evaluate_and_fit_returns_forecaster_and_metrics(sample_timeseries, fake
     result_forecaster, metrics = forecaster.evaluate_and_fit(sample_timeseries)
     
     assert result_forecaster is forecaster
-    assert "mape" in metrics
+    assert "MAPE" in metrics
     assert forecaster._is_fitted

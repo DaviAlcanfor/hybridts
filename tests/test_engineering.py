@@ -15,7 +15,7 @@ def test_returns_expected_columns(dates_df):
     expected = {
         "is_weekend", "is_month_start", "is_month_end",
         "day_of_week", "day_of_month",
-        "is_payday", "is_adiantamento", "sextou_com_dinheiro", "dias_desde_pagamento",
+        "is_payday", "is_salary_advance", "is_payday_friday", "days_since_payday",
         "is_holiday", "is_holiday_eve", "is_post_holiday",
     }
     assert expected.issubset(set(result.columns))
@@ -37,9 +37,9 @@ def test_is_weekend_correct(dates_df):
 def test_without_paydays_payday_columns_are_zero(dates_df):
     result = create_features(dates_df, min_year=2023, max_year=2023, paydays_set=None)
     assert (result["is_payday"] == 0).all()
-    assert (result["is_adiantamento"] == 0).all()
-    assert (result["sextou_com_dinheiro"] == 0).all()
-    assert (result["dias_desde_pagamento"] == 0).all()
+    assert (result["is_salary_advance"] == 0).all()
+    assert (result["is_payday_friday"] == 0).all()
+    assert (result["days_since_payday"] == 0).all()
 
 
 def test_with_paydays_marks_correctly():
