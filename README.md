@@ -8,7 +8,7 @@ Combines Prophet's trend and seasonality detection with gradient boosting (XGBoo
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.2.0-orange)](https://github.com/DaviAlcanfor/hybridts)
+[![Version](https://img.shields.io/badge/version-0.3.0-orange)](https://github.com/DaviAlcanfor/hybridts)
 [![Tests](https://github.com/DaviAlcanfor/hybridts/actions/workflows/tests.yml/badge.svg)](https://github.com/DaviAlcanfor/hybridts/actions/workflows/tests.yml)
 
 ---
@@ -67,7 +67,7 @@ A pandas DataFrame with exactly two columns:
 HybridForecaster(
     primary_model,           # ProphetModel instance
     secondary_model,         # XGBoostTuner or LightGBMTuner instance
-    test_size=30,            # holdout size for validate()
+    test_size=30,            # holdout size for evaluate()
     paydays_set=None,        # set of payday Timestamps (auto-generated if None)
     holidays_country="BR",   # country code for auto-generated holidays
     holidays_state=None,     # state/subdivision code
@@ -96,21 +96,24 @@ Returns a DataFrame with `horizon` rows:
 | `residual_correction`   | ML adjustment          |
 | `forecast_final`        | Final hybrid forecast  |
 
-#### `validate(df, test_size=None)`
+#### `evaluate(df, test_size=None)`
 
 Evaluates on a holdout set without data leakage. Returns `(metrics, y_true, y_pred)`.
 
 ```python
-metrics, y_true, y_pred = forecaster.validate(df)
-# metrics: {"mape", "rmse", "mae", "mdape"}
+metrics, y_true, y_pred = forecaster.evaluate(df)
+
+# Access full metrics reports after evaluate()
+forecaster.metrics_report_          # ForecastMetrics for the hybrid forecast
+forecaster.primary_metrics_report_  # ForecastMetrics for the primary model alone
 ```
 
-#### `validate_and_fit(df, test_size=None)`
+#### `evaluate_and_fit(df, test_size=None)`
 
-Validates on holdout, then retrains on the full dataset.
+Evaluates on holdout, then retrains on the full dataset.
 
 ```python
-forecaster, metrics = forecaster.validate_and_fit(df)
+forecaster, metrics = forecaster.evaluate_and_fit(df)
 ```
 
 ---
@@ -213,6 +216,41 @@ Generated features:
 
 ---
 
+## Metrics
+
+After `evaluate()`, two `ForecastMetrics` reports are available on the forecaster instance.
+
+```python
+from hybridts.src.metrics import ForecastMetrics
+
+report = forecaster.metrics_report_
+
+report.mae        # Mean Absolute Error
+report.mse        # Mean Squared Error
+report.rmse       # Root Mean Squared Error
+report.mape       # Mean Absolute Percentage Error (%)
+report.smape      # Symmetric MAPE (%)
+report.r_squared  # Coefficient of determination
+report.bias       # Mean signed error (+ = underestimation, - = overestimation)
+
+print(report.summary())
+# Forecast Metrics Summary:
+# MAE: 142.3401
+# MSE: 32401.2000
+# ...
+
+report.all_metrics()  # returns a dict with all metrics
+```
+
+`ForecastMetrics` can also be used standalone on any `y_true` / `y_pred` pair:
+
+```python
+report = ForecastMetrics(y_true, y_pred)
+print(report.summary())
+```
+
+---
+
 ## Logging
 
 HybridTS uses [loguru](https://github.com/Delgan/loguru) with logging disabled by default (library-safe). To enable:
@@ -240,6 +278,8 @@ hybridts/
     │   └── secondary/
     │       ├── xgboost.py       # XGBoostTuner
     │       └── lightgbm.py      # LightGBMTuner
+    ├── metrics/
+    │   └── forecast.py          # ForecastMetrics
     ├── pipeline/
     │   └── pipeline.py          # HybridForecaster
     └── exception/
