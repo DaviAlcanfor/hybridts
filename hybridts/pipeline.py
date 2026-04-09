@@ -1,27 +1,29 @@
-import pandas as pd
-import numpy as np
+import copy
 from datetime import timedelta
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 from loguru import logger
 
-from hybridts.src.features.engineering import create_features
-from hybridts.src.features.holidays import create_holidays_prophet, get_brazilian_paydays
-from hybridts.src.features.data_processor import TimeSeriesProcessor
-from hybridts.src.metrics.forecast import ForecastMetrics
+from .features.engineering import create_features
+from .features.holidays import create_holidays_prophet, get_brazilian_paydays
+from .metrics.forecast import ForecastMetrics
+from .preprocessing.processor import TimeSeriesProcessor
 
-# Sentinel for "user did not pass this argument" — distinct from None 
+# Sentinel for "user did not pass this argument" — distinct from None
 _UNSET = object()
 
 
 class HybridForecaster:
     """
     Hybrid time series forecaster combining a primary baseline model (e.g. Prophet)
-    with a secondary residual model (e.g. XGBoost, LightGBM).
+    with a secondary residual model (e.g. XGBoostModel, LightGBMModel).
 
     Args:
         primary_model: Primary model instance (must implement fit/predict).
         secondary_model: Secondary model instance (must implement fit/predict).
-        test_size: Holdout size in days used in validate(). Default: 30.
+        test_size: Holdout size in days used in evaluate(). Default: 30.
         paydays_set: Set of payday Timestamps for feature engineering.
                      If None and features are auto-generated, Brazilian paydays are used.
         holidays_country: Country code for auto-generated holidays. Default: "BR".
@@ -58,12 +60,12 @@ class HybridForecaster:
     def _calculate_residuals(
         self,
         df: pd.DataFrame,
-        primary_predictions: pd.DataFrame
+        primary_predictions: pd.DataFrame,
     ) -> pd.Series:
         """Residuals between actual values and primary model predictions."""
-        y = df.set_index('ds')['y']
-        y.index = pd.PeriodIndex(y.index, freq='D')
-        residuals = y.values - primary_predictions['yhat'].values
+        y = df.set_index("ds")["y"]
+        y.index = pd.PeriodIndex(y.index, freq="D")
+        residuals = y.values - primary_predictions["yhat"].values
         return pd.Series(residuals, index=y.index)
 
     def fit(
@@ -71,9 +73,9 @@ class HybridForecaster:
         df: pd.DataFrame,
         holidays=_UNSET,
         features=_UNSET,
-    ) -> 'HybridForecaster':
+    ) -> "HybridForecaster":
         """
-        Fits the hybrid model on the provided data.
+        Fit the hybrid model on the provided data.
 
         Args:
             df: Training data with columns 'ds' (datetime) and 'y' (float).
@@ -93,40 +95,36 @@ class HybridForecaster:
 
         if holidays is _UNSET:
             holidays = create_holidays_prophet(
-                years=df['ds'].dt.year.unique(),
+                years=df["ds"].dt.year.unique(),
                 country=self.holidays_country,
-                state=self.holidays_state
+                state=self.holidays_state,
             )
 
         if features is _UNSET:
             paydays = self.paydays_set or get_brazilian_paydays(min_year, max_year + 1)
             features = create_features(
-                df[['ds']],
+                df[["ds"]],
                 paydays_set=paydays,
                 min_year=min_year,
                 max_year=max_year + 1,
                 holidays_country=self.holidays_country,
-                holidays_state=self.holidays_state
+                holidays_state=self.holidays_state,
             )
 
         self._fit_min_year = min_year
         self._fit_max_year = max_year
 
-        # Train primary model
         self.primary_model.fit(df, holidays)
 
-        # Train secondary model on residuals
-        primary_predictions = self.primary_model.predict(df[['ds']])
+        primary_predictions = self.primary_model.predict(df[["ds"]])
         residuals = self._calculate_residuals(df, primary_predictions)
 
-        if features is not None:
-            self.secondary_model.fit(features, residuals)
-        else:
-            self.secondary_model.fit(residuals)
+        self.secondary_model.fit(residuals, X=features)
 
         self._is_fitted = True
-        logger.success(f"Model trained: {type(self.primary_model).__name__} + {type(self.secondary_model).__name__}")
-
+        logger.success(
+            f"Model trained: {type(self.primary_model).__name__} + {type(self.secondary_model).__name__}"
+        )
         return self
 
     def predict(
@@ -135,12 +133,12 @@ class HybridForecaster:
         features=_UNSET,
     ) -> pd.DataFrame:
         """
-        Generates forecasts for the next N days.
+        Generate forecasts for the next N days.
 
         Args:
             horizon: Number of days to forecast.
             features: Exogenous features for the forecast horizon.
-                      - Omit: auto-generated using same config as fit().
+                      - Omit: auto-generated using the same config as fit().
                       - None: predict without exogenous features.
                       - DataFrame: used as-is.
 
@@ -157,9 +155,9 @@ class HybridForecaster:
         future_dates = pd.date_range(
             start=pd.Timestamp.now().normalize() + timedelta(days=1),
             periods=horizon,
-            freq='D'
+            freq="D",
         )
-        df_future = pd.DataFrame({'ds': future_dates})
+        df_future = pd.DataFrame({"ds": future_dates})
 
         primary_forecast = self.primary_model.predict(df_future)
 
@@ -168,25 +166,22 @@ class HybridForecaster:
                 self._fit_min_year, self._fit_max_year + 1
             )
             features = create_features(
-                df_future[['ds']],
+                df_future[["ds"]],
                 paydays_set=paydays,
                 min_year=self._fit_min_year,
                 max_year=self._fit_max_year + 1,
                 holidays_country=self.holidays_country,
-                holidays_state=self.holidays_state
+                holidays_state=self.holidays_state,
             )
 
         fh = np.arange(1, horizon + 1)
-        if features is not None:
-            residual_forecast = self.secondary_model.predict(fh=fh, X=features)
-        else:
-            residual_forecast = self.secondary_model.predict(fh=fh)
+        residual_forecast = self.secondary_model.predict(fh=fh, X=features)
 
         return pd.DataFrame({
-            'data': df_future['ds'],
-            'forecast_primary_base': primary_forecast['yhat'].values,
-            'residual_correction': residual_forecast.values,
-            'forecast_final': (primary_forecast['yhat'].values + residual_forecast.values).astype(int)
+            "data": df_future["ds"],
+            "forecast_primary_base": primary_forecast["yhat"].values,
+            "residual_correction": residual_forecast.values,
+            "forecast_final": (primary_forecast["yhat"].values + residual_forecast.values).astype(int),
         })
 
     def evaluate(
@@ -197,7 +192,7 @@ class HybridForecaster:
         features=_UNSET,
     ) -> Tuple[Dict[str, float], np.ndarray, np.ndarray]:
         """
-        Evaluates the model using a holdout set (no data leakage).
+        Evaluate the model using a holdout set (no data leakage).
 
         Args:
             df: Full dataset with columns 'ds' and 'y'.
@@ -214,8 +209,8 @@ class HybridForecaster:
         df_train, df_test = self.processor.df_train_test_split(df, test_size)
 
         temp_forecaster = HybridForecaster(
-            primary_model=self.primary_model,
-            secondary_model=self.secondary_model,
+            primary_model=copy.deepcopy(self.primary_model),
+            secondary_model=copy.deepcopy(self.secondary_model),
             test_size=test_size,
             paydays_set=self.paydays_set,
             holidays_country=self.holidays_country,
@@ -224,16 +219,16 @@ class HybridForecaster:
         temp_forecaster.fit(df_train, holidays=holidays, features=features)
         df_pred = temp_forecaster.predict(horizon=test_size)
 
-        y_true = df_test['y'].values
-        y_pred_primary = df_pred['forecast_primary_base'].values
-        y_pred_final   = df_pred['forecast_final'].values
+        y_true = df_test["y"].values
+        y_pred_primary = df_pred["forecast_primary_base"].values
+        y_pred_final = df_pred["forecast_final"].values
 
         self.primary_metrics_report_ = ForecastMetrics(y_true, y_pred_primary)
         self.metrics_report_ = ForecastMetrics(y_true, y_pred_final)
 
         self.metrics_ = self.metrics_report_.all_metrics()
-        self.y_true_  = y_true
-        self.y_pred_  = y_pred_final
+        self.y_true_ = y_true
+        self.y_pred_ = y_pred_final
 
         return self.metrics_, y_true, y_pred_final
 
@@ -243,9 +238,9 @@ class HybridForecaster:
         test_size: Optional[int] = None,
         holidays=_UNSET,
         features=_UNSET,
-    ) -> Tuple['HybridForecaster', Dict[str, float]]:
+    ) -> Tuple["HybridForecaster", Dict[str, float]]:
         """
-        Evaluates on a holdout set, then retrains on the full dataset.
+        Evaluate on a holdout set, then retrain on the full dataset.
 
         Returns:
             Tuple of (self, metrics dict).
@@ -258,11 +253,11 @@ class HybridForecaster:
         )
 
         self._validation_context = {
-            'test_start': str(df_test['ds'].min()),
-            'test_end': str(df_test['ds'].max()),
-            'test_size': test_size,
-            'y_true': y_true.tolist(),
-            'y_pred': y_pred.tolist()
+            "test_start": str(df_test["ds"].min()),
+            "test_end": str(df_test["ds"].max()),
+            "test_size": test_size,
+            "y_true": y_true.tolist(),
+            "y_pred": y_pred.tolist(),
         }
 
         logger.info("Retraining on full dataset...")

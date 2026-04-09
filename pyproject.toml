@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hybridts"
-version = "0.3.0"
+version = "0.4.0"
 description = "Hybrid time series forecasting library combining Prophet with gradient boosting models"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -46,8 +46,8 @@ dependencies = [
     "prophet>=1.1.0",
     "xgboost>=2.0.0",
     "lightgbm>=4.0.0",
-    "sktime>=0.13.0",
-    "holidays>=0.34",
+    "sktime>=0.40.0",
+    "holidays>=0.40",
     "python-dateutil>=2.8.0",
     "loguru>=0.7.0",
 ]
@@ -70,11 +70,11 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/davifrancamaciel/hybridts"
-Repository = "https://github.com/davifrancamaciel/hybridts"
-Documentation = "https://github.com/davifrancamaciel/hybridts#readme"
-"Bug Tracker" = "https://github.com/davifrancamaciel/hybridts/issues"
-Changelog = "https://github.com/davifrancamaciel/hybridts/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/DaviAlcanfor/hybridts"
+Repository = "https://github.com/DaviAlcanfor/hybridts"
+Documentation = "https://github.com/DaviAlcanfor/hybridts#readme"
+"Bug Tracker" = "https://github.com/DaviAlcanfor/hybridts/issues"
+Changelog = "https://github.com/DaviAlcanfor/hybridts/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]

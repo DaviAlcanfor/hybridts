@@ -20,16 +20,12 @@ class ForecastMetrics:
         >>> report.all_metrics()
     """
 
-    def __init__(
-        self,
-        y_true: np.ndarray,
-        y_pred: np.ndarray,
-    ):
+    def __init__(self, y_true: np.ndarray, y_pred: np.ndarray):
         self.y_true = np.asarray(y_true, dtype=float)
         self.y_pred = np.asarray(y_pred, dtype=float)
 
-        residuals     = self.y_true - self.y_pred
-        nonzero       = self.y_true != 0
+        residuals = self.y_true - self.y_pred
+        nonzero = self.y_true != 0
         abs_residuals = np.abs(residuals)
 
         self.mae = float(np.mean(abs_residuals))
@@ -37,11 +33,13 @@ class ForecastMetrics:
         self.rmse = float(np.sqrt(self.mse))
         self.mape = float(np.mean(abs_residuals[nonzero] / np.abs(self.y_true[nonzero])) * 100)
         self.smape = self._smape(abs_residuals)
-        self.r_squared = float(1 - np.sum(residuals ** 2) / np.sum((self.y_true - self.y_true.mean()) ** 2))
+        self.r_squared = float(
+            1 - np.sum(residuals ** 2) / np.sum((self.y_true - self.y_true.mean()) ** 2)
+        )
         self.bias = float(residuals.mean())
 
     def _smape(self, abs_residuals: np.ndarray) -> float:
-        add     = np.abs(self.y_true) + np.abs(self.y_pred)
+        add = np.abs(self.y_true) + np.abs(self.y_pred)
         nonzero = add != 0
         return float(np.mean(2 * abs_residuals[nonzero] / add[nonzero]) * 100)
 
@@ -74,5 +72,7 @@ class ForecastMetrics:
 
     def summary(self) -> str:
         """Returns a formatted string of all metrics."""
-        lines = ["Forecast Metrics Summary:"] + [f"{k}: {v:.4f}" for k, v in self.all_metrics().items()]
+        lines = ["Forecast Metrics Summary:"] + [
+            f"{k}: {v:.4f}" for k, v in self.all_metrics().items()
+        ]
         return "\n".join(lines)
