@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from typing import Dict, Tuple, Optional
-from sklearn.metrics import mean_absolute_percentage_error, mean_squared_error
 from loguru import logger
 
 from hybridts.src.features.engineering import create_features
 from hybridts.src.features.holidays import create_holidays_prophet, get_brazilian_paydays
 from hybridts.src.features.data_processor import TimeSeriesProcessor
+from hybridts.src.metrics.forecast import ForecastMetrics
 
 # Sentinel for "user did not pass this argument" — distinct from None 
 _UNSET = object()
@@ -189,7 +189,7 @@ class HybridForecaster:
             'forecast_final': (primary_forecast['yhat'].values + residual_forecast.values).astype(int)
         })
 
-    def validate(
+    def evaluate(
         self,
         df: pd.DataFrame,
         test_size: Optional[int] = None,
@@ -225,22 +225,19 @@ class HybridForecaster:
         df_pred = temp_forecaster.predict(horizon=test_size)
 
         y_true = df_test['y'].values
-        y_pred = df_pred['forecast_final'].values
+        y_pred_primary = df_pred['forecast_primary_base'].values
+        y_pred_final   = df_pred['forecast_final'].values
 
-        metrics = {
-            'mape': mean_absolute_percentage_error(y_true, y_pred) * 100,
-            'rmse': float(np.sqrt(mean_squared_error(y_true, y_pred))),
-            'mae': float(np.mean(np.abs(y_true - y_pred))),
-            'mdape': float(np.median(np.abs((y_true - y_pred) / y_true)) * 100)
-        }
+        self.primary_metrics_report_ = ForecastMetrics(y_true, y_pred_primary)
+        self.metrics_report_ = ForecastMetrics(y_true, y_pred_final)
 
-        self.metrics_ = metrics
-        self.y_true_ = y_true
-        self.y_pred_ = y_pred
+        self.metrics_ = self.metrics_report_.all_metrics()
+        self.y_true_  = y_true
+        self.y_pred_  = y_pred_final
 
-        return metrics, y_true, y_pred
+        return self.metrics_, y_true, y_pred_final
 
-    def validate_and_fit(
+    def evaluate_and_fit(
         self,
         df: pd.DataFrame,
         test_size: Optional[int] = None,
@@ -248,7 +245,7 @@ class HybridForecaster:
         features=_UNSET,
     ) -> Tuple['HybridForecaster', Dict[str, float]]:
         """
-        Validates on a holdout set, then retrains on the full dataset.
+        Evaluates on a holdout set, then retrains on the full dataset.
 
         Returns:
             Tuple of (self, metrics dict).
@@ -256,7 +253,7 @@ class HybridForecaster:
         test_size = test_size if test_size is not None else self.test_size
         _, df_test = self.processor.df_train_test_split(df, test_size)
 
-        metrics, y_true, y_pred = self.validate(
+        metrics, y_true, y_pred = self.evaluate(
             df, test_size=test_size, holidays=holidays, features=features
         )
 
