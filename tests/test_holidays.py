@@ -1,6 +1,6 @@
 import pytest
 import pandas as pd
-from hybridts.src.features.holidays import create_holidays_prophet, get_brazilian_paydays
+from hybridts.features.holidays import create_holidays_prophet, get_brazilian_paydays
 
 
 def test_create_holidays_prophet_columns():

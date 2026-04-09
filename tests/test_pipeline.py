@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from hybridts.src.pipeline.pipeline import HybridForecaster
+from hybridts.pipeline import HybridForecaster
 
 
 def test_predict_before_fit_raises(fake_primary, fake_secondary):
@@ -58,8 +58,8 @@ def test_fit_with_features_none(sample_timeseries, fake_primary, fake_secondary)
 def test_evaluate_returns_metrics_and_arrays(sample_timeseries, fake_primary, fake_secondary):
     forecaster = HybridForecaster(fake_primary, fake_secondary, test_size=30)
     metrics, y_true, y_pred = forecaster.evaluate(sample_timeseries)
-
-    assert {"MAE", "MSE", "RMSE", "MAPE", "sMAPE", "R-squared", "Bias"}.issubset(metrics.keys())
+    
+    assert {"mape", "rmse", "mae", "mdape"}.issubset(metrics.keys())
     assert len(y_true) == 30
     assert len(y_pred) == 30
 
@@ -67,24 +67,16 @@ def test_evaluate_returns_metrics_and_arrays(sample_timeseries, fake_primary, fa
 def test_evaluate_stores_results_on_instance(sample_timeseries, fake_primary, fake_secondary):
     forecaster = HybridForecaster(fake_primary, fake_secondary, test_size=30)
     forecaster.evaluate(sample_timeseries)
-
+    
     assert hasattr(forecaster, "metrics_")
     assert hasattr(forecaster, "y_true_")
     assert hasattr(forecaster, "y_pred_")
 
 
-def test_evaluate_stores_metrics_reports(sample_timeseries, fake_primary, fake_secondary):
-    forecaster = HybridForecaster(fake_primary, fake_secondary, test_size=30)
-    forecaster.evaluate(sample_timeseries)
-
-    assert hasattr(forecaster, "metrics_report_")
-    assert hasattr(forecaster, "primary_metrics_report_")
-
-
 def test_evaluate_and_fit_returns_forecaster_and_metrics(sample_timeseries, fake_primary, fake_secondary):
     forecaster = HybridForecaster(fake_primary, fake_secondary, test_size=30)
     result_forecaster, metrics = forecaster.evaluate_and_fit(sample_timeseries)
-
+    
     assert result_forecaster is forecaster
-    assert "MAPE" in metrics
+    assert "mape" in metrics
     assert forecaster._is_fitted

@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from hybridts.src.features.engineering import create_features
+from hybridts.features.engineering import create_features
 
 
 @pytest.fixture

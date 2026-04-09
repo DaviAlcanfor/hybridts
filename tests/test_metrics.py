@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from hybridts.src.metrics.forecast import ForecastMetrics
+from hybridts.metrics.forecast import ForecastMetrics
 
 
 @pytest.fixture

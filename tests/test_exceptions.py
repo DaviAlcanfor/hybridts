@@ -1,5 +1,5 @@
 import pytest
-from hybridts.src.exception.model_exception import (
+from hybridts.exceptions import (
     ModelTrainingException,
     ModelPredictionException,
     model_error_handler,
