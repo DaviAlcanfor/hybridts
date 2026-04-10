@@ -1,10 +1,8 @@
 # HybridTS
 
-![HybridTS Logo](docs/logo_v1.png)
-
 Hybrid Time Series Forecasting for Python
 
-Combines Prophet's trend and seasonality modeling with gradient boosting (XGBoost / LightGBM) to correct residuals — delivering more accurate forecasts than either model alone.
+Combines Prophet's trend and seasonality modeling with gradient boosting (XGBoost / LightGBM) to correct residuals, delivering more accurate forecasts than either model alone.
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
