@@ -23,7 +23,7 @@ class FakePrimaryModel:
 
 
 class FakeSecondaryModel:
-    def fit(self, X_or_residuals, residuals=None, X=None):
+    def fit(self, residuals_train, X_train=None):
         return self
 
     def predict(self, fh, X=None):
