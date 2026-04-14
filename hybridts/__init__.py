@@ -34,7 +34,7 @@ from loguru import logger
 
 logger.disable("hybridts")
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 __author__ = "Davi Franco"
 __email__ = "alcanfordavi@gmail.com"
 
@@ -46,6 +46,7 @@ from .models.secondary.lightgbm_model import LightGBMModel
 from .features.holidays import create_holidays_prophet, get_brazilian_paydays
 from .features.engineering import create_features
 from .metrics.forecast import ForecastMetrics
+from .plotting import plot_forecast
 
 __all__ = [
     "HybridForecaster",
@@ -57,5 +58,6 @@ __all__ = [
     "create_holidays_prophet",
     "get_brazilian_paydays",
     "create_features",
+    "plot_forecast",
     "__version__",
 ]

@@ -65,7 +65,7 @@ class HybridForecaster:
         """Residuals between actual values and primary model predictions."""
         y = df.set_index("ds")["y"]
         y.index = pd.PeriodIndex(y.index, freq="D")
-        residuals = y.values - primary_predictions["yhat"].values
+        residuals = y.to_numpy() - primary_predictions["yhat"].to_numpy()
         return pd.Series(residuals, index=y.index)
 
     def fit(
@@ -119,18 +119,17 @@ class HybridForecaster:
         primary_predictions = self.primary_model.predict(df[["ds"]])
         residuals = self._calculate_residuals(df, primary_predictions)
 
-        self.secondary_model.fit(residuals, X=features)
+        self.secondary_model.fit(residuals, X_train=features)
 
         self._is_fitted = True
-        logger.success(
-            f"Model trained: {type(self.primary_model).__name__} + {type(self.secondary_model).__name__}"
-        )
+        logger.success(f"Model trained: {type(self.primary_model).__name__} + {type(self.secondary_model).__name__}")
         return self
 
     def predict(
         self,
         horizon: int,
         features=_UNSET,
+        start_date: Optional[pd.Timestamp] = None,
     ) -> pd.DataFrame:
         """
         Generate forecasts for the next N days.
@@ -141,6 +140,9 @@ class HybridForecaster:
                       - Omit: auto-generated using the same config as fit().
                       - None: predict without exogenous features.
                       - DataFrame: used as-is.
+            start_date: Origin date for the forecast window (exclusive).
+                        Defaults to today. Pass the last training date when
+                        forecasting over a known holdout period (e.g. in evaluate()).
 
         Returns:
             DataFrame with columns:
@@ -152,8 +154,9 @@ class HybridForecaster:
         if not self._is_fitted:
             raise RuntimeError("Model not fitted. Call fit() first.")
 
+        origin = start_date if start_date is not None else pd.Timestamp.now().normalize()
         future_dates = pd.date_range(
-            start=pd.Timestamp.now().normalize() + timedelta(days=1),
+            start=origin + timedelta(days=1),
             periods=horizon,
             freq="D",
         )
@@ -177,12 +180,19 @@ class HybridForecaster:
         fh = np.arange(1, horizon + 1)
         residual_forecast = self.secondary_model.predict(fh=fh, X=features)
 
-        return pd.DataFrame({
+        self.forecast_ = pd.DataFrame({
             "data": df_future["ds"],
             "forecast_primary_base": primary_forecast["yhat"].values,
             "residual_correction": residual_forecast.values,
             "forecast_final": (primary_forecast["yhat"].values + residual_forecast.values).astype(int),
         })
+        self.forecast_plot_df_ = self.forecast_[["data", "forecast_final"]].rename(
+            columns={"data": "ds", "forecast_final": "yhat"}
+        )
+        self.primary_plot_df_ = self.forecast_[["data", "forecast_primary_base"]].rename(
+            columns={"data": "ds", "forecast_primary_base": "yhat"}
+        )
+        return self.forecast_
 
     def evaluate(
         self,
@@ -217,11 +227,11 @@ class HybridForecaster:
             holidays_state=self.holidays_state,
         )
         temp_forecaster.fit(df_train, holidays=holidays, features=features)
-        df_pred = temp_forecaster.predict(horizon=test_size)
+        df_pred = temp_forecaster.predict(horizon=test_size, start_date=df_train["ds"].max())
 
-        y_true = df_test["y"].values
-        y_pred_primary = df_pred["forecast_primary_base"].values
-        y_pred_final = df_pred["forecast_final"].values
+        y_true = df_test["y"].to_numpy()
+        y_pred_primary = df_pred["forecast_primary_base"].to_numpy()
+        y_pred_final = df_pred["forecast_final"].to_numpy()
 
         self.primary_metrics_report_ = ForecastMetrics(y_true, y_pred_primary)
         self.metrics_report_ = ForecastMetrics(y_true, y_pred_final)
@@ -229,6 +239,10 @@ class HybridForecaster:
         self.metrics_ = self.metrics_report_.all_metrics()
         self.y_true_ = y_true
         self.y_pred_ = y_pred_final
+        self.df_test_ = df_test
+        self.eval_forecast_df_ = df_pred[["data", "forecast_final"]].rename(
+            columns={"data": "ds", "forecast_final": "yhat"}
+        )
 
         return self.metrics_, y_true, y_pred_final
 
@@ -246,15 +260,14 @@ class HybridForecaster:
             Tuple of (self, metrics dict).
         """
         test_size = test_size if test_size is not None else self.test_size
-        _, df_test = self.processor.df_train_test_split(df, test_size)
 
         metrics, y_true, y_pred = self.evaluate(
             df, test_size=test_size, holidays=holidays, features=features
         )
 
         self._validation_context = {
-            "test_start": str(df_test["ds"].min()),
-            "test_end": str(df_test["ds"].max()),
+            "test_start": str(self.df_test_["ds"].min()),
+            "test_end": str(self.df_test_["ds"].max()),
             "test_size": test_size,
             "y_true": y_true.tolist(),
             "y_pred": y_pred.tolist(),
@@ -264,3 +277,77 @@ class HybridForecaster:
         self.fit(df, holidays=holidays, features=features)
 
         return self, metrics
+
+    def plot_forecast(
+        self,
+        df: pd.DataFrame,
+        forecast_df: Optional[pd.DataFrame] = None,
+        show_primary: bool = True,
+        ax=None,
+        figsize: tuple = (12, 6),
+        title: Optional[str] = None,
+    ):
+        """
+        Plot actual values vs forecast.
+
+        Args:
+            df: Historical data with 'ds' and 'y' columns (used as actual values).
+            forecast_df: Forecast DataFrame in plot format (ds, yhat).
+                         If None, uses self.forecast_plot_df_ from the last predict() call.
+            show_primary: Whether to overlay the primary model baseline. Default: True.
+            ax: Matplotlib axes. If None, a new figure is created.
+            figsize: Figure size.
+            title: Plot title.
+
+        Returns:
+            fig, ax: Matplotlib figure and axes.
+        """
+        from .plotting import plot_forecast as _plot_forecast
+
+        if forecast_df is None and not hasattr(self, "forecast_plot_df_"):
+            raise RuntimeError("No forecast found. Call predict() first or pass forecast_df.")
+
+        fc = forecast_df if forecast_df is not None else self.forecast_plot_df_
+        primary = self.primary_plot_df_ if show_primary and hasattr(self, "primary_plot_df_") else None
+
+        return _plot_forecast(
+            actual_df=df,
+            forecast_df=fc,
+            primary_pred=primary,
+            ax=ax,
+            figsize=figsize,
+            title=title,
+        )
+
+    def plot_evaluation(
+        self,
+        ax=None,
+        figsize: tuple = (12, 6),
+        title: Optional[str] = None,
+    ):
+        """
+        Plot evaluation results from the last evaluate() or evaluate_and_fit() call.
+
+        Args:
+            ax: Matplotlib axes. If None, a new figure is created.
+            figsize: Figure size.
+            title: Plot title.
+
+        Returns:
+            fig, ax: Matplotlib figure and axes.
+
+        Raises:
+            RuntimeError: If evaluate() has not been called yet.
+        """
+        from .plotting import plot_forecast as _plot_forecast
+
+        if not hasattr(self, "eval_forecast_df_"):
+            raise RuntimeError("No evaluation results found. Call evaluate() or evaluate_and_fit() first.")
+
+        return _plot_forecast(
+            actual_df=self.df_test_,
+            forecast_df=self.eval_forecast_df_,
+            ax=ax,
+            figsize=figsize,
+            title=title or "Evaluation — Holdout Period",
+        )
