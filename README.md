@@ -152,17 +152,6 @@ Available metrics: `MAE`, `MSE`, `RMSE`, `MAPE`, `sMAPE`, `R-squared`, `Bias`.
 
 ---
 
-## Benchmark
-
-> [Add benchmark results after testing on your dataset]
-
-| Model | MAE | RMSE | MAPE |
-| --- | --- | --- | --- |
-| Prophet only | — | — | — |
-| **HybridTS** | — | — | — |
-
----
-
 ## Examples
 
 See the [`examples/`](examples/) folder for notebooks covering common use cases.
