@@ -37,7 +37,7 @@ HybridTS combines Prophet's trend and seasonality modeling with gradient boostin
 │       Input Data (ds, y)    │
 └──────────────┬──────────────┘
                │
-       ┌───────▼────────┐
+       ┌───────▼─────────┐
        │  Primary Model  │
        │   (Prophet)     │
        │                 │
@@ -51,7 +51,7 @@ HybridTS combines Prophet's trend and seasonality modeling with gradient boostin
        │   actual − ŷ_prophet    │
        └───────┬─────────────────┘
                │
-       ┌───────▼────────────────────┐
+       ┌───────▼─────────────────────┐
        │     Residual Model          │
        │  (XGBoost / LightGBM)       │
        │                             │
@@ -59,9 +59,9 @@ HybridTS combines Prophet's trend and seasonality modeling with gradient boostin
        │  holiday features           │
        └───────┬─────────────────────┘
                │
-       ┌───────▼──────────────────────────┐
+       ┌───────▼───────────────────────────┐
        │  Final Forecast                   │
-       │  ŷ_prophet  +  ŷ_residual        │
+       │  ŷ_prophet  +  ŷ_residual         │
        └───────────────────────────────────┘
 ```
 
