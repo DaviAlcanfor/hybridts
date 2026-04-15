@@ -1,8 +1,5 @@
-# HybridTS
 
 <div align="center">
-
-<img src="docs/logo_v2.png" alt="HybridTS Logo" width="300"/>
 
 ## *Hybrid Time Series Forecasting with Prophet and Gradient Boosting*
 
