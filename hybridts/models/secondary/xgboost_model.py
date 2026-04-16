@@ -6,10 +6,11 @@ from sktime.forecasting.model_selection import ExpandingWindowSplitter, Forecast
 from sktime.performance_metrics.forecasting import MeanAbsolutePercentageError
 from xgboost import XGBRegressor
 
+from ..base import ResidualModel
 from ...exceptions import ModelPredictionException, ModelTrainingException, model_error_handler
 
 
-class XGBoostModel:
+class XGBoostModel(ResidualModel):
     """
     XGBoost residual forecaster with optional cross-validation hyperparameter tuning.
 
