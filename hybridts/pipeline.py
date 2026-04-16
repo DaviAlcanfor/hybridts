@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+from hybridts.models.base import PrimaryModel, ResidualModel
 from .features.engineering import create_features
 from .features.holidays import create_holidays_prophet, get_brazilian_paydays
 from .metrics.forecast import ForecastMetrics
@@ -41,10 +42,10 @@ class HybridForecaster:
 
     def __init__(
         self,
-        primary_model,
-        secondary_model,
+        primary_model: PrimaryModel,
+        secondary_model: ResidualModel,
         test_size: int = 30,
-        paydays_set: Optional[set] = None,
+        paydays_set: Optional[set] = None, # TODO remove this asap and find an alternative
         holidays_country: str = "BR",
         holidays_state: Optional[str] = None,
     ):
@@ -184,7 +185,7 @@ class HybridForecaster:
             "data": df_future["ds"],
             "forecast_primary_base": primary_forecast["yhat"].values,
             "residual_correction": residual_forecast.values,
-            "forecast_final": (primary_forecast["yhat"].values + residual_forecast.values).astype(int),
+            "forecast_final": (primary_forecast["yhat"].values + residual_forecast.values).round().astype(int),
         })
         self.forecast_plot_df_ = self.forecast_[["data", "forecast_final"]].rename(
             columns={"data": "ds", "forecast_final": "yhat"}
