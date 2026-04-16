@@ -6,10 +6,11 @@ import pandas as pd
 from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 
+from ..base import PrimaryModel
 from ...exceptions import ModelPredictionException, ModelTrainingException, model_error_handler
 
 
-class ProphetModel:
+class ProphetModel(PrimaryModel):
     """
     Prophet wrapper with cross-validation hyperparameter tuning.
 

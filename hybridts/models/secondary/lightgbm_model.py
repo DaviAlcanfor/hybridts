@@ -7,10 +7,11 @@ from sktime.forecasting.compose import make_reduction
 from sktime.forecasting.model_selection import ExpandingWindowSplitter, ForecastingGridSearchCV
 from sktime.performance_metrics.forecasting import MeanAbsolutePercentageError
 
+from ..base import ResidualModel
 from ...exceptions import ModelPredictionException, ModelTrainingException, model_error_handler
 
 
-class LightGBMModel:
+class LightGBMModel(ResidualModel):
     """
     LightGBM residual forecaster with optional cross-validation hyperparameter tuning.
 
