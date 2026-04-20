@@ -8,7 +8,7 @@
 [![Tests](https://github.com/DaviAlcanfor/hybridts/actions/workflows/tests.yml/badge.svg)](https://github.com/DaviAlcanfor/hybridts/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-HybridTS combines Prophet's trend and seasonality modeling with gradient boosting (XGBoost / LightGBM) to correct residuals — delivering more accurate forecasts than either model alone.
+HybridTS combines Prophet's trend and seasonality modeling with gradient boosting (XGBoost / LightGBM) to correct residuals.
 
 [Quick Start](#quick-start) • [Installation](#installation) • [Examples](#examples) • [Contributing](#contributing)
 
