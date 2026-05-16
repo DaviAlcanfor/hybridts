@@ -1,7 +1,10 @@
 
+
 <div align="center">
 
-## *Hybrid Time Series Forecasting with Prophet and Gradient Boosting*
+# HybridTS
+
+*Hybrid Time Series Forecasting with Prophet and Gradient Boosting*
 
 [![PyPI](https://img.shields.io/pypi/v/hybridts)](https://pypi.org/project/hybridts/)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
