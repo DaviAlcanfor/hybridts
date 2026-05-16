@@ -87,11 +87,11 @@ pip install hybridts[plotting]
 import pandas as pd
 from hybridts import HybridForecaster, ProphetModel, XGBoostModel
 
-# Configure models
 prophet = ProphetModel(
     param_grid={"changepoint_prior_scale": [0.05, 0.1]},
     cv_params={"initial": "300 days", "period": "30 days", "horizon": "30 days"},
 )
+
 xgb = XGBoostModel(
     param_grid={"window_length": [21], "estimator__max_depth": [5, 7]},
     static_params={"n_estimators": 200, "max_depth": 5},
@@ -103,17 +103,14 @@ xgb = XGBoostModel(
     strategy="recursive",
 )
 
-# Evaluate on holdout, then retrain on full data
-forecaster = HybridForecaster(primary_model=prophet, secondary_model=xgb)
-df = pd.read_csv("data.csv", parse_dates=["ds"])  # columns: ds, y
+df = pd.read_csv("data.csv", parse_dates=["ds"])
 
-forecaster, metrics = forecaster.evaluate_and_fit(df)
+forecaster, metrics = (
+    HybridForecaster(primary_model=prophet, secondary_model=xgb)
+    .evaluate_and_fit(df)
+)
 
-# Forecast the next 30 days
 forecast = forecaster.predict(horizon=30)
-print(forecast)
-
-# Visualize
 forecaster.plot_forecast(df)
 forecaster.plot_evaluation()
 ```
